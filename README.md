@@ -39,7 +39,7 @@ npm -v
 3. Set up environment variables:
    Create a `.env` file in the root directory:
    ```env
-   PORT=5000
+   PORT=9000
    NODE_ENV=development
    ```
 

@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { uploadAudio, getMyAudios, getPublicAudios } = require('../controllers/audioController');
+const {
+  uploadAudio,
+  getMyAudios,
+  getPublicAudios,
+  getCloudinarySignature,
+  saveAudioMetadata,
+} = require('../controllers/audioController');
 const { verifyToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
@@ -29,7 +35,13 @@ const handleAudioUpload = (req, res, next) => {
   });
 };
 
-// Upload audio & thumbnail
+// Generate Cloudinary Upload Signature (Direct Upload Flow)
+router.get('/cloudinary-signature', verifyToken, getCloudinarySignature);
+
+// Save Audio Metadata to MongoDB (Direct Upload Flow)
+router.post('/save-metadata', verifyToken, saveAudioMetadata);
+
+// Upload audio & thumbnail (Server Proxy Upload Flow)
 router.post('/upload', verifyToken, handleAudioUpload, uploadAudio);
 
 // Authenticated view of uploaded audios

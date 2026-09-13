@@ -12,8 +12,30 @@ const app = express();
 // Database connection
 connectDB();
 
-// Core Middleware
-app.use(cors());
+// Universal CORS Middleware - Allow ALL Origins Dynamically
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, *');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+const corsOptions = {
+  origin: (origin, callback) => callback(null, true), // Dynamically allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['*'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -29,12 +51,15 @@ app.use('/api/playlists', playlistRoutes);
 
 // 404 Handler
 app.use((req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled Error:', err);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', '*');
   const status = err.status || err.statusCode || 500;
   let message = err.message || 'Internal Server Error';
 

@@ -188,8 +188,84 @@ const getPublicAudios = async (req, res) => {
   }
 };
 
+/**
+ * Generate Cloudinary Upload Signature
+ * GET /api/audio/cloudinary-signature
+ * Header: Authorization: Bearer <jwt>
+ */
+const getCloudinarySignature = async (req, res) => {
+  try {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = req.query.folder || 'tune_world/audios';
+
+    const signature = cloudinary.utils.api_sign_request(
+      { timestamp, folder },
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    res.status(200).json({
+      success: true,
+      timestamp,
+      signature,
+      folder,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate upload signature',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Save Audio Metadata to MongoDB (Direct Upload Flow)
+ * POST /api/audio/save-metadata
+ * Header: Authorization: Bearer <jwt>
+ * JSON Body: { name, audioUrl, thumbnailImageUrl, visibility }
+ */
+const saveAudioMetadata = async (req, res) => {
+  try {
+    const { name, audioUrl, thumbnailImageUrl, visibility } = req.body;
+
+    if (!name || !audioUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and audioUrl are required',
+      });
+    }
+
+    const validVisibilities = ['private', 'unlisted', 'public'];
+    const audioVisibility = validVisibilities.includes(visibility) ? visibility : 'public';
+
+    const newAudio = await Audio.create({
+      name: name.trim(),
+      userId: req.user.userId,
+      audioUrl,
+      thumbnailImageUrl: thumbnailImageUrl || '',
+      visibility: audioVisibility,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Audio saved successfully',
+      audio: newAudio,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save audio metadata',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   uploadAudio,
   getMyAudios,
   getPublicAudios,
+  getCloudinarySignature,
+  saveAudioMetadata,
 };

@@ -1,5 +1,5 @@
 const Audio = require('../models/Audio');
-const { uploadToCloudinary } = require('../config/cloudinary');
+const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
 
 /**
  * Upload Audio and Optional Thumbnail to Cloudinary & Save to MongoDB
@@ -198,6 +198,13 @@ const getCloudinarySignature = async (req, res) => {
     const timestamp = Math.round(new Date().getTime() / 1000);
     const folder = req.query.folder || 'tune_world/audios';
 
+    if (!process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_CLOUD_NAME) {
+      return res.status(500).json({
+        success: false,
+        message: 'Cloudinary configuration is missing in server .env environment variables',
+      });
+    }
+
     const signature = cloudinary.utils.api_sign_request(
       { timestamp, folder },
       process.env.CLOUDINARY_API_SECRET
@@ -212,6 +219,7 @@ const getCloudinarySignature = async (req, res) => {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     });
   } catch (error) {
+    console.error('Error generating Cloudinary signature:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate upload signature',

@@ -6,6 +6,8 @@ const {
   getPublicAudios,
   getCloudinarySignature,
   saveAudioMetadata,
+  updateAudio,
+  deleteAudio,
 } = require('../controllers/audioController');
 const { verifyToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -43,6 +45,12 @@ router.post('/save-metadata', verifyToken, saveAudioMetadata);
 
 // Upload audio & thumbnail (Server Proxy Upload Flow)
 router.post('/upload', verifyToken, handleAudioUpload, uploadAudio);
+
+// Update audio details (name, visibility, thumbnailImageUrl)
+router.put('/:id', verifyToken, updateAudio);
+
+// Delete audio & associated playlist entries
+router.delete('/:id', verifyToken, deleteAudio);
 
 // Authenticated view of uploaded audios
 router.get('/my-audios', verifyToken, getMyAudios);

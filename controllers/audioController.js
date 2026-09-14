@@ -270,10 +270,111 @@ const saveAudioMetadata = async (req, res) => {
   }
 };
 
+/**
+ * Update Audio (Name, Visibility, Thumbnail)
+ * PUT /api/audio/:id
+ * Header: Authorization: Bearer <jwt>
+ */
+const updateAudio = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, visibility, thumbnailImageUrl } = req.body;
+
+    const audio = await Audio.findById(id);
+    if (!audio) {
+      return res.status(404).json({
+        success: false,
+        message: 'Audio not found',
+      });
+    }
+
+    // Ownership check
+    if (audio.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only edit your own uploaded audio',
+      });
+    }
+
+    if (name && name.trim() !== '') {
+      audio.name = name.trim();
+    }
+
+    const validVisibilities = ['private', 'unlisted', 'public'];
+    if (visibility && validVisibilities.includes(visibility)) {
+      audio.visibility = visibility;
+    }
+
+    if (thumbnailImageUrl !== undefined) {
+      audio.thumbnailImageUrl = thumbnailImageUrl;
+    }
+
+    await audio.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Audio updated successfully',
+      audio,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update audio',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete Audio
+ * DELETE /api/audio/:id
+ * Header: Authorization: Bearer <jwt>
+ */
+const deleteAudio = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const audio = await Audio.findById(id);
+    if (!audio) {
+      return res.status(404).json({
+        success: false,
+        message: 'Audio not found',
+      });
+    }
+
+    // Ownership check
+    if (audio.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only delete your own uploaded audio',
+      });
+    }
+
+    await Audio.findByIdAndDelete(id);
+
+    // Clean up AudioPlaylist entries referencing this deleted audio
+    await AudioPlaylist.deleteMany({ audioId: id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Audio deleted successfully',
+      audioId: id,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete audio',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   uploadAudio,
   getMyAudios,
   getPublicAudios,
   getCloudinarySignature,
   saveAudioMetadata,
+  updateAudio,
+  deleteAudio,
 };

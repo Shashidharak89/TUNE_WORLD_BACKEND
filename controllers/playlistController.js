@@ -337,10 +337,160 @@ const getPlaylistDetails = async (req, res) => {
   }
 };
 
+/**
+ * Update Playlist (Name, Visibility, Image)
+ * PUT /api/playlists/:id
+ * Header: Authorization: Bearer <jwt>
+ */
+const updatePlaylist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, visibility, imageUrl } = req.body;
+
+    const playlist = await Playlist.findById(id);
+    if (!playlist) {
+      return res.status(404).json({
+        success: false,
+        message: 'Playlist not found',
+      });
+    }
+
+    // Ownership check
+    if (playlist.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only edit your own playlist',
+      });
+    }
+
+    if (name && name.trim() !== '') {
+      playlist.name = name.trim();
+    }
+
+    const validVisibilities = ['private', 'unlisted', 'public'];
+    if (visibility && validVisibilities.includes(visibility)) {
+      playlist.visibility = visibility;
+    }
+
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, {
+        folder: 'tune_world/playlists',
+        resource_type: 'image',
+      });
+      playlist.imageUrl = uploadResult.secure_url;
+    } else if (imageUrl !== undefined) {
+      playlist.imageUrl = imageUrl;
+    }
+
+    await playlist.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Playlist updated successfully',
+      playlist,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update playlist',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete Playlist
+ * DELETE /api/playlists/:id
+ * Header: Authorization: Bearer <jwt>
+ */
+const deletePlaylist = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const playlist = await Playlist.findById(id);
+    if (!playlist) {
+      return res.status(404).json({
+        success: false,
+        message: 'Playlist not found',
+      });
+    }
+
+    // Ownership check
+    if (playlist.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only delete your own playlist',
+      });
+    }
+
+    await Playlist.findByIdAndDelete(id);
+
+    // Clean up AudioPlaylist entries associated with this playlist
+    await AudioPlaylist.deleteMany({ playlistId: id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Playlist deleted successfully',
+      playlistId: id,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete playlist',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Remove Audio from Playlist
+ * DELETE /api/playlists/:playlistId/remove-audio/:audioId
+ * Header: Authorization: Bearer <jwt>
+ */
+const removeAudioFromPlaylist = async (req, res) => {
+  try {
+    const { playlistId, audioId } = req.params;
+
+    const playlist = await Playlist.findById(playlistId);
+    if (!playlist) {
+      return res.status(404).json({
+        success: false,
+        message: 'Playlist not found',
+      });
+    }
+
+    // Ownership check
+    if (playlist.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Only the playlist creator can remove music from it',
+      });
+    }
+
+    await AudioPlaylist.findOneAndDelete({ playlistId, audioId });
+
+    res.status(200).json({
+      success: true,
+      message: 'Audio removed from playlist successfully',
+      playlistId,
+      audioId,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove audio from playlist',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createPlaylist,
   addAudioToPlaylist,
   getPublicPlaylists,
   getMyPlaylists,
   getPlaylistDetails,
+  updatePlaylist,
+  deletePlaylist,
+  removeAudioFromPlaylist,
 };

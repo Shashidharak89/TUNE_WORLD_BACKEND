@@ -6,6 +6,9 @@ const {
   getPublicPlaylists,
   getMyPlaylists,
   getPlaylistDetails,
+  updatePlaylist,
+  deletePlaylist,
+  removeAudioFromPlaylist,
 } = require('../controllers/playlistController');
 const { verifyToken, optionalToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -34,8 +37,17 @@ const handlePlaylistUpload = (req, res, next) => {
 // Create playlist
 router.post('/', verifyToken, handlePlaylistUpload, createPlaylist);
 
+// Update playlist (name, visibility, cover image)
+router.put('/:id', verifyToken, handlePlaylistUpload, updatePlaylist);
+
+// Delete playlist
+router.delete('/:id', verifyToken, deletePlaylist);
+
 // Add audio to playlist (only playlist creator)
 router.post('/:playlistId/add-audio', verifyToken, addAudioToPlaylist);
+
+// Remove audio from playlist (only playlist creator)
+router.delete('/:playlistId/remove-audio/:audioId', verifyToken, removeAudioFromPlaylist);
 
 // Public view of playlists (No token required)
 router.get('/public', getPublicPlaylists);

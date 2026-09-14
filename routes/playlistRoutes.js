@@ -9,6 +9,7 @@ const {
   updatePlaylist,
   deletePlaylist,
   removeAudioFromPlaylist,
+  bulkAddAudioToPlaylist,
 } = require('../controllers/playlistController');
 const { verifyToken, optionalToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -45,6 +46,9 @@ router.delete('/:id', verifyToken, deletePlaylist);
 
 // Add audio to playlist (only playlist creator)
 router.post('/:playlistId/add-audio', verifyToken, addAudioToPlaylist);
+
+// Bulk add audio to playlist (only playlist creator)
+router.post('/:playlistId/bulk-add-audio', verifyToken, bulkAddAudioToPlaylist);
 
 // Remove audio from playlist (only playlist creator)
 router.delete('/:playlistId/remove-audio/:audioId', verifyToken, removeAudioFromPlaylist);

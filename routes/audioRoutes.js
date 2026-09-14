@@ -8,6 +8,7 @@ const {
   saveAudioMetadata,
   updateAudio,
   deleteAudio,
+  bulkDeleteAudios,
 } = require('../controllers/audioController');
 const { verifyToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -48,6 +49,9 @@ router.post('/upload', verifyToken, handleAudioUpload, uploadAudio);
 
 // Update audio details (name, visibility, thumbnailImageUrl)
 router.put('/:id', verifyToken, updateAudio);
+
+// Bulk delete audios
+router.post('/bulk-delete', verifyToken, bulkDeleteAudios);
 
 // Delete audio & associated playlist entries
 router.delete('/:id', verifyToken, deleteAudio);

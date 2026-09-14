@@ -484,6 +484,78 @@ const removeAudioFromPlaylist = async (req, res) => {
   }
 };
 
+/**
+ * Bulk Add Audio to Playlist
+ * POST /api/playlists/:playlistId/bulk-add-audio
+ * Header: Authorization: Bearer <jwt>
+ * JSON Body: { audioIds: [...] }
+ */
+const bulkAddAudioToPlaylist = async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+    const { audioIds } = req.body;
+
+    if (!audioIds || !Array.isArray(audioIds) || audioIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'audioIds must be a non-empty array of audio IDs',
+      });
+    }
+
+    // Check playlist existence
+    const playlist = await Playlist.findById(playlistId);
+    if (!playlist) {
+      return res.status(404).json({
+        success: false,
+        message: 'Playlist not found',
+      });
+    }
+
+    // Strict Ownership Check: Only playlist creator can add music
+    if (playlist.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Only the creator of this playlist can add music to it',
+      });
+    }
+
+    // Verify all audio IDs exist
+    const validAudios = await Audio.find({ _id: { $in: audioIds } }).select('_id');
+    const validAudioIds = validAudios.map((a) => a._id.toString());
+
+    // Find existing AudioPlaylist entries for this playlist to prevent duplicate insertion
+    const existingEntries = await AudioPlaylist.find({
+      playlistId,
+      audioId: { $in: validAudioIds },
+    }).select('audioId');
+
+    const existingAudioIdsSet = new Set(existingEntries.map((e) => e.audioId.toString()));
+
+    const newAudioIdsToAdd = validAudioIds.filter((id) => !existingAudioIdsSet.has(id));
+
+    if (newAudioIdsToAdd.length > 0) {
+      const documentsToInsert = newAudioIdsToAdd.map((audioId) => ({
+        playlistId,
+        audioId,
+      }));
+      await AudioPlaylist.insertMany(documentsToInsert);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${newAudioIdsToAdd.length} audio(s) added to playlist`,
+      addedCount: newAudioIdsToAdd.length,
+      skippedCount: audioIds.length - newAudioIdsToAdd.length,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk add audio to playlist',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createPlaylist,
   addAudioToPlaylist,
@@ -493,4 +565,5 @@ module.exports = {
   updatePlaylist,
   deletePlaylist,
   removeAudioFromPlaylist,
+  bulkAddAudioToPlaylist,
 };

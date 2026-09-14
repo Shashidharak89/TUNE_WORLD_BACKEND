@@ -1,4 +1,5 @@
 const Audio = require('../models/Audio');
+const AudioPlaylist = require('../models/AudioPlaylist');
 const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
 
 /**
@@ -369,6 +370,51 @@ const deleteAudio = async (req, res) => {
   }
 };
 
+/**
+ * Bulk Delete Audios
+ * POST /api/audio/bulk-delete
+ * Header: Authorization: Bearer <jwt>
+ * JSON Body: { audioIds: [...] }
+ */
+const bulkDeleteAudios = async (req, res) => {
+  try {
+    const { audioIds } = req.body;
+
+    if (!audioIds || !Array.isArray(audioIds) || audioIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'audioIds must be a non-empty array of audio IDs',
+      });
+    }
+
+    // Delete only audios owned by the authenticated user
+    const userAudios = await Audio.find({
+      _id: { $in: audioIds },
+      userId: req.user.userId,
+    }).select('_id');
+
+    const validIds = userAudios.map((a) => a._id);
+
+    if (validIds.length > 0) {
+      await Audio.deleteMany({ _id: { $in: validIds } });
+      await AudioPlaylist.deleteMany({ audioId: { $in: validIds } });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${validIds.length} audio(s) deleted successfully`,
+      deletedCount: validIds.length,
+      deletedAudioIds: validIds,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete audios in bulk',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   uploadAudio,
   getMyAudios,
@@ -377,4 +423,5 @@ module.exports = {
   saveAudioMetadata,
   updateAudio,
   deleteAudio,
+  bulkDeleteAudios,
 };

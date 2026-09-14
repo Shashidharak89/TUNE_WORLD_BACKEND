@@ -15,7 +15,24 @@ const {
 const { verifyToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
-const uploadSingleChunk = upload.single('chunk');
+const uploadSingleChunk = (req, res, next) => {
+  upload.single('chunk')(req, res, (err) => {
+    if (err) {
+      console.error('Multer Chunk Upload Error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          success: false,
+          message: 'Chunk file size exceeds server upload limit.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Chunk upload error',
+      });
+    }
+    next();
+  });
+};
 
 // Middleware wrapper to handle Multer upload errors cleanly as JSON
 const handleAudioUpload = (req, res, next) => {

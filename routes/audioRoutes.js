@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   uploadAudio,
+  uploadAudioChunk,
+  completeChunkedUpload,
   getMyAudios,
   getPublicAudios,
   getCloudinarySignature,
@@ -12,6 +14,8 @@ const {
 } = require('../controllers/audioController');
 const { verifyToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+
+const uploadSingleChunk = upload.single('chunk');
 
 // Middleware wrapper to handle Multer upload errors cleanly as JSON
 const handleAudioUpload = (req, res, next) => {
@@ -40,6 +44,10 @@ const handleAudioUpload = (req, res, next) => {
 
 // Generate Cloudinary Upload Signature (Direct Upload Flow)
 router.get('/cloudinary-signature', verifyToken, getCloudinarySignature);
+
+// Chunked Audio Upload Endpoints (Chunk by Chunk Flow)
+router.post('/upload-chunk', verifyToken, uploadSingleChunk, uploadAudioChunk);
+router.post('/complete-chunked-upload', verifyToken, completeChunkedUpload);
 
 // Save Audio Metadata to MongoDB (Direct Upload Flow)
 router.post('/save-metadata', verifyToken, saveAudioMetadata);

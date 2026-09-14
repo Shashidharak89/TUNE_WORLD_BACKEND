@@ -1,6 +1,136 @@
+const fs = require('fs');
+const path = require('path');
 const Audio = require('../models/Audio');
 const AudioPlaylist = require('../models/AudioPlaylist');
 const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
+
+/**
+ * Upload Audio Chunk
+ * POST /api/audio/upload-chunk
+ * Header: Authorization: Bearer <jwt>
+ * Multipart/form-data: uploadId, chunkIndex, totalChunks, chunk (file)
+ */
+const uploadAudioChunk = async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks } = req.body;
+
+    if (!uploadId || chunkIndex === undefined || !totalChunks) {
+      return res.status(400).json({
+        success: false,
+        message: 'uploadId, chunkIndex, and totalChunks are required',
+      });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chunk file is required',
+      });
+    }
+
+    const tempDir = path.join(__dirname, '../uploads/temp', uploadId);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const chunkPath = path.join(tempDir, `chunk_${chunkIndex}.tmp`);
+    fs.writeFileSync(chunkPath, req.file.buffer);
+
+    res.status(200).json({
+      success: true,
+      uploadId,
+      chunkIndex: parseInt(chunkIndex, 10),
+      totalChunks: parseInt(totalChunks, 10),
+      message: `Chunk ${chunkIndex} uploaded successfully`,
+    });
+  } catch (error) {
+    console.error('Error in uploadAudioChunk:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save audio chunk',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Complete Chunked Audio Upload
+ * POST /api/audio/complete-chunked-upload
+ * Header: Authorization: Bearer <jwt>
+ * JSON Body: { uploadId, totalChunks, name, visibility, thumbnailImageUrl }
+ */
+const completeChunkedUpload = async (req, res) => {
+  try {
+    const { uploadId, totalChunks, name, visibility, thumbnailImageUrl } = req.body;
+
+    if (!uploadId || !totalChunks || !name) {
+      return res.status(400).json({
+        success: false,
+        message: 'uploadId, totalChunks, and name are required',
+      });
+    }
+
+    const tempDir = path.join(__dirname, '../uploads/temp', uploadId);
+    if (!fs.existsSync(tempDir)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No chunked upload session found for this uploadId',
+      });
+    }
+
+    const total = parseInt(totalChunks, 10);
+    const chunkBuffers = [];
+
+    for (let i = 0; i < total; i++) {
+      const chunkPath = path.join(tempDir, `chunk_${i}.tmp`);
+      if (!fs.existsSync(chunkPath)) {
+        return res.status(400).json({
+          success: false,
+          message: `Missing chunk ${i} of ${total} for uploadId ${uploadId}`,
+        });
+      }
+      chunkBuffers.push(fs.readFileSync(chunkPath));
+    }
+
+    // Concatenate all chunks into a single complete audio buffer
+    const fullAudioBuffer = Buffer.concat(chunkBuffers);
+
+    // Upload concatenated audio to Cloudinary
+    const audioUploadResult = await uploadToCloudinary(fullAudioBuffer, {
+      folder: 'tune_world/audios',
+      resource_type: 'video',
+    });
+
+    // Cleanup temp chunk files asynchronously
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch (_) {}
+
+    const validVisibilities = ['private', 'unlisted', 'public'];
+    const audioVisibility = validVisibilities.includes(visibility) ? visibility : 'public';
+
+    const newAudio = await Audio.create({
+      name: name.trim(),
+      userId: req.user.userId,
+      audioUrl: audioUploadResult.secure_url,
+      thumbnailImageUrl: thumbnailImageUrl || '',
+      visibility: audioVisibility,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Chunked audio upload completed successfully',
+      audio: newAudio,
+    });
+  } catch (error) {
+    console.error('Error in completeChunkedUpload:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to complete chunked audio upload',
+      error: error.message,
+    });
+  }
+};
 
 /**
  * Upload Audio and Optional Thumbnail to Cloudinary & Save to MongoDB
@@ -417,6 +547,8 @@ const bulkDeleteAudios = async (req, res) => {
 
 module.exports = {
   uploadAudio,
+  uploadAudioChunk,
+  completeChunkedUpload,
   getMyAudios,
   getPublicAudios,
   getCloudinarySignature,
